@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Mock\Insurer\MockInsurerService;
 use App\Models\MockInsurerEvent;
+use App\Services\ProviderCallbackService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -70,6 +71,31 @@ class MockInsurerController extends Controller
         return response()->json([
             'count' => $events->count(),
             'events' => $events,
+        ]);
+    }
+
+    /**
+     * Demo/Inspection route: Flush due events through the callback service.
+     */
+    public function flush(ProviderCallbackService $callbackService): JsonResponse
+    {
+        $events = MockInsurerEvent::where('deliveries_remaining', '>', 0)
+            ->orderBy('id', 'asc')
+            ->get();
+
+        $results = [];
+        foreach ($events as $event) {
+            $deliveries = $event->deliveries_remaining;
+            for ($i = 0; $i < $deliveries; $i++) {
+                $res = $callbackService->handle($event->payload);
+                $event->decrement('deliveries_remaining');
+                $results[] = $res;
+            }
+        }
+
+        return response()->json([
+            'flushed_count' => count($results),
+            'results' => $results,
         ]);
     }
 }
