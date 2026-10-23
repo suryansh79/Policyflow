@@ -1,0 +1,134 @@
+### PolicyFlow REST API Request Collection
+### Base URL
+@baseUrl = http://127.0.0.1:8000/api
+
+### 1. Health Check
+GET {{baseUrl}}/health
+Accept: application/json
+
+### 2. Create Policy Request (Intake - Benchmark 225.00 INR)
+# Returns 201 Created on first call with status VALIDATED and premium "225.00"
+POST {{baseUrl}}/policy-requests
+Content-Type: application/json
+Accept: application/json
+
+{
+  "client_request_id": "AGT-2026-0001",
+  "agent_id": "AGENT-17",
+  "customer_name": "Sample Customer",
+  "date_of_birth": "1998-04-10",
+  "destination": "INTERNATIONAL",
+  "trip_start": "2026-11-10",
+  "trip_end": "2026-11-14",
+  "plan_code": "PLUS",
+  "sum_insured": 300000
+}
+
+### 3. Safe Duplicate Replay (Idempotent Intake)
+# Returns 200 OK with identical payload and Idempotent-Replayed: true header
+POST {{baseUrl}}/policy-requests
+Content-Type: application/json
+Accept: application/json
+
+{
+  "client_request_id": "AGT-2026-0001",
+  "agent_id": "AGENT-17",
+  "customer_name": "Sample Customer",
+  "date_of_birth": "1998-04-10",
+  "destination": "INTERNATIONAL",
+  "trip_start": "2026-11-10",
+  "trip_end": "2026-11-14",
+  "plan_code": "PLUS",
+  "sum_insured": 300000
+}
+
+### 4. Idempotency Key Reuse With Different Payload (Conflict Detection)
+# Returns 409 Conflict with IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD
+POST {{baseUrl}}/policy-requests
+Content-Type: application/json
+Accept: application/json
+
+{
+  "client_request_id": "AGT-2026-0001",
+  "agent_id": "AGENT-17",
+  "customer_name": "Modified Customer Name",
+  "date_of_birth": "1998-04-10",
+  "destination": "INTERNATIONAL",
+  "trip_start": "2026-11-10",
+  "trip_end": "2026-11-14",
+  "plan_code": "PLUS",
+  "sum_insured": 300000
+}
+
+### 5. Validation Error Example (Unsuppored plan & end < start)
+# Returns 422 Unprocessable Entity JSON with structured field errors
+POST {{baseUrl}}/policy-requests
+Content-Type: application/json
+Accept: application/json
+
+{
+  "client_request_id": "AGT-INVALID-01",
+  "agent_id": "AGENT-17",
+  "customer_name": "Invalid Customer",
+  "date_of_birth": "1995-01-01",
+  "destination": "SPACE",
+  "trip_start": "2026-11-20",
+  "trip_end": "2026-11-10",
+  "plan_code": "ULTRA",
+  "sum_insured": 999999
+}
+
+### 6. Submit Policy Issuance (SUCCESS Scenario)
+# Replace {{requestId}} with the UUID from request #2
+@requestId = your-uuid-here
+POST {{baseUrl}}/policy-requests/{{requestId}}/submit
+Accept: application/json
+
+### 7. Repeated Submit After ISSUED (Safe No-Op)
+# Returns 200 OK with outcome ALREADY_ISSUED and provider_called: false
+POST {{baseUrl}}/policy-requests/{{requestId}}/submit
+Accept: application/json
+
+### 8. Get Policy Detail (Includes Audit Trail and Attempts)
+GET {{baseUrl}}/policy-requests/{{requestId}}
+Accept: application/json
+
+### 9. List Policy Requests (Filtered by Status and Paginated)
+GET {{baseUrl}}/policy-requests?status=ISSUED&per_page=15&page=1
+Accept: application/json
+
+### 10. Intake with TIMEOUT_AFTER_ISSUE Scenario
+POST {{baseUrl}}/policy-requests
+Content-Type: application/json
+Accept: application/json
+
+{
+  "client_request_id": "AGT-TIMEOUT-001",
+  "agent_id": "AGENT-17",
+  "customer_name": "Timeout Customer",
+  "date_of_birth": "1990-01-15",
+  "destination": "DOMESTIC",
+  "trip_start": "2026-12-01",
+  "trip_end": "2026-12-05",
+  "plan_code": "BASIC",
+  "sum_insured": 100000,
+  "mock_scenario": "TIMEOUT_AFTER_ISSUE"
+}
+
+### 11. Inbound Provider Callback (Simulated External Event)
+POST {{baseUrl}}/mock-insurer/callback
+Content-Type: application/json
+Accept: application/json
+
+{
+  "event_id": "evt_sample_01",
+  "event_type": "POLICY_ISSUED",
+  "provider_reference": "PRV-MOCK-SAMPLE",
+  "client_reference": "{{requestId}}",
+  "policy_number": "POL-MOCK-SAMPLE",
+  "occurred_at": "2026-11-10T10:00:00Z"
+}
+
+### 12. Flush Due Mock Events (Dev-Only Outbox Trigger)
+POST {{baseUrl}}/mock-insurer/events/flush
+Accept: application/json

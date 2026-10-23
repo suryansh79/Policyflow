@@ -1,59 +1,489 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# PolicyFlow
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+> **Fault-Tolerant Insurance Issuance & Reconciliation Engine**  
+> *TrippersShield Campus Placement | Software Engineering Practical Assessment*
 
-## About Laravel
+[![PHP Version](https://img.shields.io/badge/PHP-8.2%2B-blue.svg)](https://php.net)
+[![Laravel Framework](https://img.shields.io/badge/Laravel-12%2B-red.svg)](https://laravel.com)
+[![Tests](https://img.shields.io/badge/Tests-160%20passed%20(698%20assertions)-brightgreen.svg)]()
+[![Database](https://img.shields.io/badge/Database-MySQL%208%20%7C%20PostgreSQL%20%7C%20SQLite-orange.svg)]()
+[![Code Style](https://img.shields.io/badge/Code%20Style-Laravel%20Pint-black.svg)]()
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+---
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## 1. Executive Summary
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+PolicyFlow is a fault-tolerant policy intake, pricing, and issuance engine designed for travel-insurance distribution networks. External insurer APIs are notoriously unreliable: network connections time out, workers crash mid-flight, and webhooks deliver repeatedly.
 
-## Learning Laravel
+**Primary Engineering Objective**: Never issue duplicate policies and never reach an incorrect final state when the same purchase request is retried, timed out, or delivered multiple times.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+PolicyFlow implements:
+- **Case A (Headline)**: Atomic duplicate intake prevention using database compound unique indexes and SHA-256 canonical payload fingerprinting.
+- **Case B (Headline)**: Timeout recovery via status lookup reconciliation without blind re-issuance.
+- **Case C**: Idempotent webhook receiver with outbox deduplication and immutable terminal state protection.
+- **Case D**: Safe retries after temporary failure preserving the byte-identical original accepted premium snapshot.
+- **Pure Integer Pricing**: Hundredth-multiplier decimal-safe integer math in paise (INR) with zero float conversion or `bcmath` reliance.
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+---
 
-## Laravel Sponsors
+## 2. Quickstart & Local Setup
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+### Prerequisites
+- **PHP** >= 8.2 with extensions: `pdo_mysql`, `pdo_sqlite`, `mbstring`, `openssl`, `tokenizer`, `xml`, `ctype`, `json`
+- **Composer** >= 2.0
+- **Docker & Docker Compose** (Optional, for zero-config MySQL 8)
 
-### Premium Partners
+### Option A: Standard Local Setup (Zero-Config SQLite)
+```bash
+# 1. Clone repository
+git clone https://github.com/Suryansh790/policyflow-<candidate-id>.git
+cd policyflow-<candidate-id>
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+# 2. Install PHP dependencies
+composer install
 
-## Contributing
+# 3. Environment configuration
+cp .env.example .env
+php artisan key:generate
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+# 4. Run database migrations (SQLite by default)
+touch database/database.sqlite
+php artisan migrate
 
-## Code of Conduct
+# 5. Start the local server with 4 background workers
+PHP_CLI_SERVER_WORKERS=4 php artisan serve --host=127.0.0.1 --port=8000
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### Option B: Running with MySQL 8 via Docker Compose
+To run against a production-grade MySQL 8 instance with true row-level locking:
+```bash
+# 1. Start MySQL 8 container in background
+docker compose up -d mysql
 
-## Security Vulnerabilities
+# 2. Configure .env for MySQL
+# Set DB_CONNECTION=mysql, DB_HOST=127.0.0.1, DB_PORT=3306 (or 3308 if port 3306 is occupied on host)
+# DB_DATABASE=policyflow, DB_USERNAME=policyflow, DB_PASSWORD=secret
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+# 3. Run database migrations on MySQL
+php artisan migrate
 
-## License
+# 4. Start the server
+PHP_CLI_SERVER_WORKERS=4 php artisan serve
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+---
+
+## 3. Automated Testing
+
+The automated test suite runs **160 tests with 698 assertions** and requires **zero setup**:
+
+```bash
+# Run entire test suite using in-memory SQLite (Default)
+php artisan test
+```
+
+### Running Tests Against MySQL 8
+```bash
+# 1. Copy the testing environment configuration
+cp .env.testing.example .env.testing
+
+# 2. Run the test suite against MySQL
+php artisan test --env=testing
+```
+
+> [!NOTE]
+> SQLite serializes writers across the entire database file. True row-level locking (`FOR UPDATE`) only exists on MySQL 8 and PostgreSQL. For this reason, PolicyFlow's concurrency correctness relies on **database unique constraints** and **optimistic Compare-And-Swap (CAS) updates**, rather than database row locks alone.
+
+---
+
+## 4. Architecture & State Machine
+
+### 4.1 State Machine Diagram
+PolicyFlow strictly enforces an explicit 8-state machine through backed enum `App\Enums\PolicyStatus`. Regressions (such as `ISSUED -> SUBMITTED`) are strictly rejected by `App\Services\PolicyStateMachine` and throw `InvalidStateTransitionException`.
+
+```mermaid
+stateDiagram-v2
+    [*] --> RECEIVED
+    RECEIVED --> VALIDATED : intake & pricing
+    RECEIVED --> FAILED : validation fatal
+    
+    VALIDATED --> SUBMITTED : submit claim
+    VALIDATED --> FAILED : rejected
+    
+    SUBMITTED --> ISSUED : provider success
+    SUBMITTED --> PENDING_CONFIRMATION : delayed webhook
+    SUBMITTED --> RETRY_PENDING : temporary failure
+    SUBMITTED --> NEEDS_RECONCILIATION : timeout / crash
+    SUBMITTED --> FAILED : permanent failure
+    
+    RETRY_PENDING --> SUBMITTED : retry submit
+    RETRY_PENDING --> FAILED : max attempts reached
+    
+    PENDING_CONFIRMATION --> ISSUED : callback received
+    PENDING_CONFIRMATION --> FAILED : callback rejected
+    PENDING_CONFIRMATION --> NEEDS_RECONCILIATION : reconciliation overdue
+    
+    NEEDS_RECONCILIATION --> ISSUED : status lookup confirmed
+    NEEDS_RECONCILIATION --> PENDING_CONFIRMATION : status pending
+    NEEDS_RECONCILIATION --> RETRY_PENDING : provider has NO record
+    NEEDS_RECONCILIATION --> FAILED : provider rejected
+    
+    ISSUED --> [*] : terminal state (immutable)
+    FAILED --> [*] : terminal state (immutable)
+```
+
+### 4.2 Non-Blocking 3-Step Submission Protocol
+**The Golden Concurrency Rule**: Never hold a database transaction or lock open across an external HTTP call. Doing so holds database connections during network timeouts (10–30s), rapidly starving connection pools.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client
+    participant API as PolicyFlow API
+    participant DB as Database
+    participant Insurer as External Insurer
+    
+    Client->>API: POST /api/policy-requests/{id}/submit
+    Note over API,DB: Step 1: Claim (Short Transaction <10ms)
+    API->>DB: lockForUpdate() + CAS update to SUBMITTED
+    DB-->>API: 1 row affected (Claim Won)
+    
+    Note over API,Insurer: Step 2: External Call (NO DB Lock Open)
+    API->>Insurer: POST /policies (client_reference=UUID)
+    Note over Insurer: Insurer processes...
+    Insurer-->>API: Response (Policy # / Timeout / Error)
+    
+    Note over API,DB: Step 3: Record Result (Short Transaction <10ms)
+    API->>DB: lockForUpdate() + transition to ISSUED / RETRY_PENDING / NEEDS_RECONCILIATION
+    API->>DB: Record attempt in issuance_attempts table
+    DB-->>API: Committed
+    API-->>Client: 200 OK (Outcome & Resource)
+```
+
+---
+
+## 5. Duplicate Prevention & Reliability Strategy
+
+### Case A: Duplicate Intake (Near-Simultaneous Race Recovery)
+- **Database Authority**: Compound unique index `uniq_policy_requests_agent_client` on `(agent_id, client_request_id)`.
+- **Fast Path**: Look up `agent_id + client_request_id`.
+  - Same fingerprint -> HTTP 200 OK with `Idempotent-Replayed: true`.
+  - Different fingerprint -> HTTP 409 Conflict with `IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD`.
+- **Race Condition Handling**: If two requests arrive at the exact same millisecond, both pass the fast-path lookup. The database unique index allows only one insert. The loser catches `UniqueConstraintViolationException`, re-queries the winner inside a savepoint, compares fingerprints, and returns HTTP 200 or 409. Zero 500 errors, zero duplicate rows.
+- **Automated Proof**: `PolicyIntakeTest::test_near_simultaneous_race_simulation_recovers_safely` and `examples/concurrent_intake.sh`.
+
+### Case B: Timeout After Success (Reconciliation Engine)
+- **The Hazard**: The insurer creates the policy internally, but network drops before the HTTP response returns. Blind re-issuance would create a duplicate policy and double-bill.
+- **The Solution**: On timeout, PolicyFlow transitions state to `NEEDS_RECONCILIATION` and immediately queries the provider's status lookup endpoint keyed by our client UUID (`GET /policies/{client_reference}`).
+  - If provider confirms policy was issued -> safely retrieves policy number and transitions to `ISSUED`.
+  - If provider confirms `NOT_FOUND` -> safely transitions to `RETRY_PENDING` (safe to retry because provider has no record).
+- **Automated Proof**: `PolicySubmissionTest::test_case_b_timeout_after_issue_inline_reconciliation_resolves_to_issued`.
+
+### Case C: Idempotent Callbacks & Outbox Deduplication
+- **Unique Event Store**: Table `provider_events` with unique index on `(provider, provider_event_id)`.
+- **Duplicate Callback Delivery**: If the insurer delivers the same webhook 2 or 3 times, the unique constraint catches the duplicate, increments `received_count` atomically, and returns HTTP 200 `{"result": "duplicate"}`.
+- **Immutable Terminal State**: Late callbacks arriving after `ISSUED` can never overwrite `policy_number` or state. Conflicting policy numbers log a high-priority anomaly and are stored as `CONFLICT_IGNORED`.
+- **Automated Proof**: `ProviderCallbackTest::test_duplicate_callback_delivery_returns_duplicate_and_increments_count`.
+
+### Case D: Safe Retry After Temporary Failure
+- **State Separation**: Retriable failures transition to `RETRY_PENDING` rather than terminal `FAILED`.
+- **Immutable Snapshot**: The accepted premium, currency, travel days, and breakdown are snapshotted at intake. Subsequent retries reuse the exact original snapshot; an Eloquent model guard strictly throws an exception if an update is attempted on snapshot fields.
+- **Automated Proof**: `PolicySubmissionTest::test_case_d_retry_after_temporary_failure_preserves_immutable_premium`.
+
+---
+
+## 6. Deterministic Decimal-Safe Pricing
+
+Formula:
+$$\text{premium} = \text{base\_daily\_rate} \times \text{travel\_days} \times \text{age\_multiplier} \times \text{destination\_multiplier} \times \text{coverage\_multiplier}$$
+
+### Integer Arithmetic Rules
+- Money is represented in **paise** (integers, 1 INR = 100 paise).
+- Multipliers are represented as integers in hundredths:
+  - Base Daily Rate: `BASIC = 12`, `PLUS = 20`, `PREMIUM = 30` INR
+  - Age on `trip_start`: 0–17: `110`, 18–60: `100`, 61–70: `150`, 71+: `200`
+  - Destination: `DOMESTIC = 100`, `INTERNATIONAL = 180`
+  - Coverage: 100,000: `100`, 300,000: `125`, 500,000: `150`
+- Calculation Formula:
+  $$\text{numerator} = \text{rate} \times \text{days} \times a \times d \times c$$
+  $$\text{premium\_paise} = \text{intdiv}(\text{numerator} + 5000, 10000) \quad \text{(half-up rounding)}$$
+- Formatted string `"225.00"` is built via integer division and modulo (`sprintf('%d.%02d', intdiv(paise, 100), paise % 100)`), never `number_format` on a float.
+- Age is calculated using calendar `DateTimeImmutable::diff()->y`, avoiding Carbon 3 floating point `diffInYears()`.
+
+---
+
+## 7. API Reference
+
+All routes are prefixed with `/api` and strictly return JSON.
+
+### Summary Table
+| Method | Endpoint | Purpose | Success Code |
+|---|---|---|---|
+| `POST` | `/api/policy-requests` | Intake new request or safely return replayed request | `201` / `200` |
+| `GET` | `/api/policy-requests/{id}` | Detail view with audit trail and attempt history | `200` |
+| `POST` | `/api/policy-requests/{id}/submit` | Claim and execute policy issuance | `200` |
+| `GET` | `/api/policy-requests` | List requests with status filtering & pagination | `200` |
+| `POST` | `/api/mock-insurer/callback` | Inbound insurer webhook receiver | `200` |
+| `POST` | `/api/mock-insurer/events/flush` | Flush simulated delayed mock events (dev-only) | `200` |
+
+---
+
+### 7.1 POST `/api/policy-requests` (Intake)
+
+#### Request Body
+```json
+{
+  "client_request_id": "AGT-2026-0001",
+  "agent_id": "AGENT-17",
+  "customer_name": "Sample Customer",
+  "date_of_birth": "1998-04-10",
+  "destination": "INTERNATIONAL",
+  "trip_start": "2026-11-10",
+  "trip_end": "2026-11-14",
+  "plan_code": "PLUS",
+  "sum_insured": 300000
+}
+```
+
+#### Response: New Request (HTTP 201 Created)
+```json
+{
+  "id": "9d9e4a3b-1234-4567-89ab-cdef01234567",
+  "client_request_id": "AGT-2026-0001",
+  "agent_id": "AGENT-17",
+  "customer_name": "Sample Customer",
+  "date_of_birth": "1998-04-10",
+  "destination": "INTERNATIONAL",
+  "trip_start": "2026-11-10",
+  "trip_end": "2026-11-14",
+  "plan_code": "PLUS",
+  "sum_insured": 300000,
+  "travel_days": 5,
+  "status": "VALIDATED",
+  "premium": "225.00",
+  "premium_currency": "INR",
+  "premium_breakdown": {
+    "base_daily_rate": 20,
+    "travel_days": 5,
+    "age": 28,
+    "age_multiplier": 100,
+    "destination_multiplier": 180,
+    "coverage_multiplier": 125,
+    "pricing_version": "v1.0"
+  },
+  "provider_reference": null,
+  "policy_number": null,
+  "attempt_count": 0,
+  "last_error_code": null,
+  "last_error_message": null,
+  "issued_at": null,
+  "created_at": "2026-10-23T15:30:00Z",
+  "updated_at": "2026-10-23T15:30:00Z"
+}
+```
+
+#### Response: Repeated Submission (HTTP 200 OK)
+Returns the identical JSON body with response header:
+`Idempotent-Replayed: true`
+
+#### Response: Payload Mismatch (HTTP 409 Conflict)
+```json
+{
+  "message": "Idempotency key 'AGT-2026-0001' was previously used with a different request payload.",
+  "error_code": "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD"
+}
+```
+
+---
+
+### 7.2 POST `/api/policy-requests/{id}/submit` (Issuance)
+
+#### Response: Successfully Issued (HTTP 200 OK)
+```json
+{
+  "id": "9d9e4a3b-1234-4567-89ab-cdef01234567",
+  "status": "ISSUED",
+  "policy_number": "POL-9A8B7C6D5E",
+  "provider_reference": "PRV-MOCK-123456",
+  "attempt_count": 1,
+  "issued_at": "2026-10-23T15:35:00Z",
+  "submission": {
+    "outcome": "ISSUED",
+    "provider_called": true
+  }
+}
+```
+
+#### Response: Repeated Submit (HTTP 200 OK)
+```json
+{
+  "id": "9d9e4a3b-1234-4567-89ab-cdef01234567",
+  "status": "ISSUED",
+  "policy_number": "POL-9A8B7C6D5E",
+  "submission": {
+    "outcome": "ALREADY_ISSUED",
+    "provider_called": false
+  }
+}
+```
+
+---
+
+### 7.3 GET `/api/policy-requests/{id}` (Detail & Audit Trail)
+Single resources are flat (unwrapped). Detail view includes `audit_trail` (oldest first) and `attempts`:
+```json
+{
+  "id": "9d9e4a3b-1234-4567-89ab-cdef01234567",
+  "client_request_id": "AGT-2026-0001",
+  "status": "ISSUED",
+  "premium": "225.00",
+  "policy_number": "POL-9A8B7C6D5E",
+  "audit_trail": [
+    {
+      "from_status": null,
+      "to_status": "RECEIVED",
+      "reason": "Initial request intake",
+      "source": "API",
+      "context": null,
+      "created_at": "2026-10-23T15:30:00Z"
+    },
+    {
+      "from_status": "RECEIVED",
+      "to_status": "VALIDATED",
+      "reason": "Intake validation and pricing snapshot complete",
+      "source": "API",
+      "context": null,
+      "created_at": "2026-10-23T15:30:00Z"
+    },
+    {
+      "from_status": "VALIDATED",
+      "to_status": "SUBMITTED",
+      "reason": "Claimed for issuance attempt 1",
+      "source": "SUBMIT",
+      "context": {"attempt": 1},
+      "created_at": "2026-10-23T15:35:00Z"
+    },
+    {
+      "from_status": "SUBMITTED",
+      "to_status": "ISSUED",
+      "reason": "Policy successfully issued by provider",
+      "source": "SUBMIT",
+      "context": null,
+      "created_at": "2026-10-23T15:35:01Z"
+    }
+  ],
+  "attempts": [
+    {
+      "id": 1,
+      "type": "ISSUE",
+      "sequence": 1,
+      "outcome": "ISSUED",
+      "http_status": 200,
+      "duration_ms": 142
+    }
+  ]
+}
+```
+
+---
+
+### 7.4 POST `/api/mock-insurer/callback` (Webhook Receiver)
+
+#### Inbound Payload
+```json
+{
+  "event_id": "evt_01J98ABCDEF1234567890",
+  "event_type": "POLICY_ISSUED",
+  "provider_reference": "PRV-MOCK-123456",
+  "client_reference": "9d9e4a3b-1234-4567-89ab-cdef01234567",
+  "policy_number": "POL-9A8B7C6D5E",
+  "occurred_at": "2026-11-10T10:00:00Z"
+}
+```
+
+#### Response (First Delivery)
+```json
+{
+  "result": "applied",
+  "event_id": "evt_01J98ABCDEF1234567890",
+  "request_status": "ISSUED"
+}
+```
+
+#### Response (Duplicate Delivery)
+```json
+{
+  "result": "duplicate",
+  "event_id": "evt_01J98ABCDEF1234567890",
+  "request_status": "ISSUED"
+}
+```
+
+---
+
+## 8. Mock Insurer & Live Interview Scenarios
+
+The mock insurer service runs in-process (`App\Mock\Insurer\MockInsurerService`) behind the `InsurerGateway` interface.
+
+### Supported Scenarios
+| Scenario | Mock Behavior | PolicyFlow Handling |
+|---|---|---|
+| `SUCCESS` *(default)* | Returns `policy_number` and `provider_reference` | -> `ISSUED` |
+| `TEMPORARY_FAILURE` | Retriable 503 error on first N attempts, then succeeds | -> `RETRY_PENDING`, retry succeeds |
+| `TIMEOUT_AFTER_ISSUE` | Creates policy in DB, then throws timeout exception | Status lookup resolves to `ISSUED` without re-issue |
+| `DELAYED_CALLBACK` | Returns `PENDING`, queues outbox event | -> `PENDING_CONFIRMATION`, flush transitions to `ISSUED` |
+| `DUPLICATE_CALLBACK` | Returns `PENDING`, queues identical event 3 times | 1 applied, 2 safely ignored as duplicates |
+| `PERMANENT_FAILURE` | Non-retriable 400 rejection | -> `FAILED` |
+
+### Changing Scenarios Live During the Interview
+You can change the scenario for any policy request live using the CLI artisan command:
+```bash
+php artisan mock-insurer:set-scenario {REQUEST_UUID} TIMEOUT_AFTER_ISSUE
+```
+Or pass the optional `mock_scenario` parameter directly during intake:
+```json
+{
+  "client_request_id": "AGT-LIVE-001",
+  "mock_scenario": "TIMEOUT_AFTER_ISSUE",
+  ...
+}
+```
+
+---
+
+## 9. Requirements Traceability Matrix
+
+| Spec Section | Requirement | Implementation File | Verification Test |
+|---|---|---|---|
+| **3.1** | Policy Request Intake API & Idempotency | `PolicyRequestIntakeService.php` | `PolicyIntakeTest.php` |
+| **3.2** | Deterministic Integer Pricing & Snapshot | `PremiumCalculator.php` | `PremiumCalculatorTest.php` |
+| **3.3** | Explicit State Machine & Audit Trail | `PolicyStateMachine.php` | `PolicyStateMachineTest.php` |
+| **3.4 (1)** | Case A: Duplicate Intake (Near-simultaneous) | `PolicyRequestRepository.php` | `PolicyIntakeTest.php`, `concurrent_intake.sh` |
+| **3.4 (2)** | Case B: Timeout After Issue & Reconciliation | `SubmissionService.php`, `ReconciliationService.php` | `PolicySubmissionTest.php` |
+| **3.4 (3)** | Case C: Duplicate Webhook Callbacks | `ProviderCallbackService.php` | `ProviderCallbackTest.php` |
+| **3.4 (4)** | Case D: Retries After Temporary Failure | `SubmissionService.php` | `PolicySubmissionTest.php` |
+| **4.1–4.5** | REST API Contract & Resource Formats | `PolicyRequestController.php`, `PolicyRequestResource.php` | `PolicyQueryTest.php`, `ApiFoundationTest.php` |
+| **5.0** | Mock Insurer Engine & Live Switching | `MockInsurerService.php`, `SetMockScenarioCommand.php` | `MockInsurerTest.php` |
+| **6.0** | Database Schema & Unique Constraints | `2026_10_23_000001_create_policy_requests_table.php` | `DatabaseSchemaTest.php` |
+| **7.5** | PII Privacy in Logging | `PolicyRequestIntakeService.php`, `SubmissionService.php` | `LogPrivacyTest.php` |
+
+---
+
+## 10. Assumptions & Design Decisions
+
+1. **Intake Persists as `VALIDATED`**: The intake endpoint performs both payload validation and deterministic pricing snapshot calculation in a single atomic database transaction. Persisting an unpriced or unvalidated request adds no business value; a persisted request is therefore immediately `VALIDATED`.
+2. **HTTP 409 on Key Reuse with Different Payload**: If an agent re-submits an existing `client_request_id` with modified customer or coverage data, PolicyFlow rejects it with HTTP 409 `IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD`. Silently accepting or re-pricing violates idempotency safety.
+3. **`RETRY_PENDING` State Addition**: `FAILED` is terminal. When an insurer API returns a temporary failure (e.g. 503), the request is safe to retry. Adding `RETRY_PENDING` provides explicit operational visibility without corrupting the meaning of `FAILED`.
+4. **In-Process Mock Insurer**: `php artisan serve` is single-threaded. Making external HTTP calls to self-endpoints would cause immediate deadlocks. The in-process mock behind `InsurerGateway` provides high fidelity while running safely in single-threaded environments.
+5. **Age Computed on `trip_start`**: Per insurance domain standards, policy risk is evaluated at the effective start of the policy. If a customer turns 18 during the trip, their policy is priced according to their age on `trip_start`.
+6. **No Future-Date Validation Added**: The specification explicitly forbids adding validation rules beyond the spec (such as requiring dates in the future) that could reject legitimate inputs from automated test fixtures.
+
+---
+
+## 11. Known Limitations & Production Roadmap
+
+1. **HMAC Webhook Signatures**: In production, the `/api/mock-insurer/callback` endpoint would be guarded with an HMAC SHA-256 signature middleware (`X-Signature`) using a shared secret between distributor and insurer.
+2. **Asynchronous Queues with Backoff**: High-throughput issuance would dispatch a `SubmitPolicyJob` to Redis/Amazon SQS with exponential backoff (e.g. 5s, 30s, 120s) and dead-letter queue routing for failed jobs.
+3. **Customer PII Encryption**: To comply with GDPR/DPDP, customer personal data (`customer_name`, `date_of_birth`) should be encrypted at rest in the database using Laravel's encrypted model casts (`AES-256-GCM`).
+4. **Transactional Outbox Pattern**: If emitting external domain events (e.g. notifying agents or issuing certificates), an outbox table within the local transaction guarantees zero event loss if the message broker is temporarily offline.
+5. **Observability**: Integrate OpenTelemetry distributed tracing to trace requests end-to-end across distributor and insurer APIs.
