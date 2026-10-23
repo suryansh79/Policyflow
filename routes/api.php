@@ -23,8 +23,9 @@ Route::get('/health', function () {
     ]);
 });
 
-// Policy Requests Intake
+// Policy Requests Intake & Submission
 Route::post('/policy-requests', [PolicyRequestController::class, 'store']);
+Route::post('/policy-requests/{id}/submit', [PolicyRequestController::class, 'submit'])->whereUuid('id');
 
 // Mock Insurer Inspection and Direct Test Endpoints
 Route::prefix('mock-insurer')->group(function () {

@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\CreatePolicyRequestRequest;
 use App\Http\Resources\PolicyRequestResource;
 use App\Services\PolicyRequestIntakeService;
+use App\Services\SubmissionService;
 use Illuminate\Http\JsonResponse;
 
 class PolicyRequestController extends Controller
@@ -30,5 +31,21 @@ class PolicyRequestController extends Controller
         }
 
         return $resource->response()->setStatusCode(201);
+    }
+
+    /**
+     * Issuance submission endpoint: Start or safely resume policy issuance.
+     */
+    public function submit(string $id, SubmissionService $submissionService): JsonResponse
+    {
+        $result = $submissionService->submit($id);
+
+        $payload = (new PolicyRequestResource($result['request']))->resolve();
+        $payload['submission'] = [
+            'outcome' => $result['outcome'],
+            'provider_called' => $result['provider_called'],
+        ];
+
+        return response()->json($payload, 200);
     }
 }
