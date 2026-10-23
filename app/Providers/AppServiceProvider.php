@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Contracts\InsurerGateway;
+use App\Mock\Insurer\MockInsurerGateway;
 use App\Repositories\PolicyRequestRepository;
 use App\Repositories\PolicyRequestRepositoryInterface;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -17,6 +19,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(PolicyRequestRepositoryInterface::class, PolicyRequestRepository::class);
+        $this->app->bind(InsurerGateway::class, MockInsurerGateway::class);
     }
 
     /**
