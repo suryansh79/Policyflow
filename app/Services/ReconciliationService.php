@@ -10,6 +10,7 @@ use App\Models\IssuanceAttempt;
 use App\Models\PolicyRequest;
 use Exception;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ReconciliationService
 {
@@ -42,6 +43,11 @@ class ReconciliationService
         $startTime = microtime(true);
         $lookupException = null;
         $lookupResponse = null;
+
+        Log::info('Policy reconciliation initiated', [
+            'request_id' => $policyRequest->id,
+            'state' => $policyRequest->status->value,
+        ]);
 
         // Step 1: Call provider lookup outside of any transaction
         try {

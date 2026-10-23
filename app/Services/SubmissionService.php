@@ -13,6 +13,7 @@ use App\Models\IssuanceAttempt;
 use App\Models\PolicyRequest;
 use Exception;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class SubmissionService
 {
@@ -153,6 +154,12 @@ class SubmissionService
                 'provider_called' => false,
             ];
         }
+
+        Log::info('Policy issuance claim succeeded', [
+            'request_id' => $claimedRequest->id,
+            'attempt' => $attemptCount,
+            'state' => PolicyStatus::SUBMITTED->value,
+        ]);
 
         // Step 2: Call provider OUTSIDE of any transaction
         $startTime = microtime(true);

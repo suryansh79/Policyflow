@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   mysql:
     image: mysql:8
@@ -11,7 +9,7 @@ services:
       MYSQL_USER: policyflow
       MYSQL_PASSWORD: secret
     ports:
-      - "3306:3306"
+      - "${FORWARD_DB_PORT:-3306}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro

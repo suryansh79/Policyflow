@@ -11,6 +11,7 @@ use App\Models\PolicyRequest;
 use App\Repositories\PolicyRequestRepositoryInterface;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\Log;
 
 class PolicyRequestIntakeService
 {
@@ -37,6 +38,13 @@ class PolicyRequestIntakeService
         $existing = $this->repository->findByAgentAndClientRequestId($agentId, $clientRequestId);
         if ($existing) {
             if ($existing->request_fingerprint === $fingerprint) {
+                Log::info('Policy request intake replayed existing record', [
+                    'request_id' => $existing->id,
+                    'agent_id' => $agentId,
+                    'client_request_id' => $clientRequestId,
+                    'status' => $existing->status->value,
+                ]);
+
                 return [
                     'request' => $existing,
                     'is_replayed' => true,
@@ -90,6 +98,13 @@ class PolicyRequestIntakeService
         try {
             $newRequest = $this->repository->createWithInitialHistory($attributes);
 
+            Log::info('Policy request intake created new record', [
+                'request_id' => $newRequest->id,
+                'agent_id' => $agentId,
+                'client_request_id' => $clientRequestId,
+                'status' => $newRequest->status->value,
+            ]);
+
             return [
                 'request' => $newRequest,
                 'is_replayed' => false,
@@ -104,6 +119,13 @@ class PolicyRequestIntakeService
             }
 
             if ($winner->request_fingerprint === $fingerprint) {
+                Log::info('Policy request intake replayed winning concurrent record', [
+                    'request_id' => $winner->id,
+                    'agent_id' => $agentId,
+                    'client_request_id' => $clientRequestId,
+                    'status' => $winner->status->value,
+                ]);
+
                 return [
                     'request' => $winner,
                     'is_replayed' => true,
