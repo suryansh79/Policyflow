@@ -140,7 +140,9 @@ sequenceDiagram
 
 All premium calculations are deterministic, reproducible, and mathematically exact. Money is stored and calculated in **paise** (integers, 1 INR = 100 paise) to avoid IEEE 754 floating-point inaccuracies:
 
-$$\text{premium} = \text{base\_daily\_rate} \times \text{travel\_days} \times \text{age\_multiplier} \times \text{destination\_multiplier} \times \text{coverage\_multiplier}$$
+$$
+\text{premium} = \text{base\_daily\_rate} \times \text{travel\_days} \times \text{age\_multiplier} \times \text{destination\_multiplier} \times \text{coverage\_multiplier}
+$$
 
 #### Hundredth-Multiplier Integer Arithmetic
 Multipliers are represented as integers scaled by 100:
@@ -154,8 +156,13 @@ Multipliers are represented as integers scaled by 100:
 - **Coverage Multiplier**: `100000 = 100`, `300000 = 125`, `500000 = 150`
 
 #### Exact Integer Half-Up Rounding Formula
-$$\text{numerator} = \text{base\_rate} \times \text{travel\_days} \times \text{age\_mult} \times \text{dest\_mult} \times \text{cov\_mult}$$
-$$\text{premium\_paise} = \text{intdiv}(\text{numerator} + 5000, 10000)$$
+$$
+\text{numerator} = \text{base\_rate} \times \text{travel\_days} \times \text{age\_mult} \times \text{dest\_mult} \times \text{cov\_mult}
+$$
+
+$$
+\text{premium\_paise} = \text{intdiv}(\text{numerator} + 5000, 10000)
+$$
 
 The output string `"225.00"` is formatted strictly via integer division and modulo:
 ```php
