@@ -138,42 +138,49 @@ sequenceDiagram
 
 ### 2.3 Deterministic Decimal-Safe Pricing Engine
 
-All premium calculations are deterministic, reproducible, and mathematically exact. Money is stored and calculated in **paise** (integers, 1 INR = 100 paise) to avoid IEEE 754 floating-point inaccuracies:
+All premium calculations are deterministic and reproducible using integer arithmetic. Money is stored and calculated in **paise** (1 INR = 100 paise) to avoid floating-point precision errors.
 
-$$
-\text{premium} = \text{base\_daily\_rate} \times \text{travel\_days} \times \text{age\_multiplier} \times \text{destination\_multiplier} \times \text{coverage\_multiplier}
-$$
+**Premium Calculation**
+
+`Premium = Base Daily Rate × Travel Days × Age Multiplier × Destination Multiplier × Coverage Multiplier`
 
 #### Hundredth-Multiplier Integer Arithmetic
+
 Multipliers are represented as integers scaled by 100:
+
 - **Base Daily Rate**: `BASIC = 12`, `PLUS = 20`, `PREMIUM = 30` INR
 - **Age Multiplier** (evaluated on `trip_start`):
-  - `0–17`: $1.10 \rightarrow \mathbf{110}$
-  - `18–60`: $1.00 \rightarrow \mathbf{100}$
-  - `61–70`: $1.50 \rightarrow \mathbf{150}$
-  - `71+`: $2.00 \rightarrow \mathbf{200}$
+  - `0–17`: `1.10 → 110`
+  - `18–60`: `1.00 → 100`
+  - `61–70`: `1.50 → 150`
+  - `71+`: `2.00 → 200`
 - **Destination Multiplier**: `DOMESTIC = 100`, `INTERNATIONAL = 180`
 - **Coverage Multiplier**: `100000 = 100`, `300000 = 125`, `500000 = 150`
 
 #### Exact Integer Half-Up Rounding Formula
-$$
-\text{numerator} = \text{base\_rate} \times \text{travel\_days} \times \text{age\_mult} \times \text{dest\_mult} \times \text{cov\_mult}
-$$
 
-$$
-\text{premium\_paise} = \text{intdiv}(\text{numerator} + 5000, 10000)
-$$
+**Step 1: Calculate the numerator**
 
-The output string `"225.00"` is formatted strictly via integer division and modulo:
+`numerator = base_rate × travel_days × age_mult × dest_mult × cov_mult`
+
+**Step 2: Convert the scaled result into paise using integer half-up rounding**
+
+`premium_paise = intdiv(numerator + 5000, 10000)`
+
+The divisor `10000` accounts for the three multipliers scaled by 100 and the conversion from rupees to paise.
+
+**Step 3: Format the final premium**
+
 ```php
 sprintf('%d.%02d', intdiv($premiumPaise, 100), $premiumPaise % 100);
 ```
 
 #### Benchmark Verification Case
+
 - **Inputs**: Agent `AGENT-17`, DOB `1998-04-10`, `INTERNATIONAL`, trip `2026-11-10` to `2026-11-14` (5 days inclusive), plan `PLUS`, coverage `300000`.
 - **Factors**: Rate = 20, Days = 5, Age = 28 (Multiplier = 100), Destination = 180, Coverage = 125.
-- **Product**: $20 \times 5 \times 100 \times 180 \times 125 = 225,000,000$.
-- **Paise Result**: $\text{intdiv}(225,000,000 + 5000, 10000) = 22,500\text{ paise} \rightarrow \mathbf{225.00\text{ INR}}$.
+- **Product**: `20 × 5 × 100 × 180 × 125 = 225,000,000`.
+- **Paise Result**: `intdiv(225000000 + 5000, 10000) = 22,500 paise = ₹225.00`.
 
 ### 2.4 Background Operations Commands
 
