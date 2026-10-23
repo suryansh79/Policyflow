@@ -24,8 +24,10 @@ Route::get('/health', function () {
     ]);
 });
 
-// Policy Requests Intake & Submission
+// Policy Requests API (Intake, Show, List, Submission)
+Route::get('/policy-requests', [PolicyRequestController::class, 'index']);
 Route::post('/policy-requests', [PolicyRequestController::class, 'store']);
+Route::get('/policy-requests/{id}', [PolicyRequestController::class, 'show'])->whereUuid('id');
 Route::post('/policy-requests/{id}/submit', [PolicyRequestController::class, 'submit'])->whereUuid('id');
 
 // Mock Insurer Callback Receiver (Spec Section 4.6)
